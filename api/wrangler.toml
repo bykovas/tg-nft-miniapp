@@ -1,0 +1,24 @@
+name = "tg-nft-miniapp-api"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+
+[vars]
+APP_NAME = "Bykovas NFT Mini App"
+
+# Development environment (branch: develop)
+[env.dev]
+route = { pattern = "dev.api.tg-nft.bykovas.lt/*", zone_name = "bykovas.lt" }
+vars = { STAGE = "dev" }
+# [[env.dev.d1_databases]]
+# binding = "DB"
+# database_name = "tg_nft_miniapp_dev"
+# database_id = "REPLACE_IN_CI"
+
+# Production environment (branch: main)
+[env.prod]
+route = { pattern = "api.tg-nft.bykovas.lt/*", zone_name = "bykovas.lt" }
+vars = { STAGE = "prod" }
+# [[env.prod.d1_databases]]
+# binding = "DB"
+# database_name = "tg_nft_miniapp_prod"
+# database_id = "REPLACE_IN_CI"

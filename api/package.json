@@ -1,0 +1,12 @@
+{
+  "name": "tg-nft-miniapp-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "build": "echo \"No build needed for Worker (TypeScript handled by Wrangler)\""
+  }
+}
