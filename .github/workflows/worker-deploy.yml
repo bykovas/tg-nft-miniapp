@@ -11,26 +11,16 @@ jobs:
       run:
         working-directory: api
     steps:
-      # Checkout source code
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Setup Node.js environment
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      # Install dependencies and build if required
-      - run: npm ci
-      - run: npm run build --if-present
-
-      # Deploy Worker via Wrangler
+      # Publish Worker via Wrangler (no npm needed yet)
       - name: Publish via Wrangler
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: \${{ secrets.CF_API_TOKEN }}
           accountId: \${{ secrets.CF_ACCOUNT_ID }}
-          # Determine environment: main -> prod, otherwise -> dev
+          # Pick environment: main -> prod, others -> dev
           command: >-
             publish
             --env=\${{ github.ref_name == 'main' && 'prod' || 'dev' }}
