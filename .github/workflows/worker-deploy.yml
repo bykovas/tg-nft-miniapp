@@ -7,20 +7,18 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: api
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Publish Worker via Wrangler (no npm needed yet)
       - name: Publish via Wrangler
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: \${{ secrets.CF_API_TOKEN }}
           accountId: \${{ secrets.CF_ACCOUNT_ID }}
-          # Pick environment: main -> prod, others -> dev
+          wranglerVersion: "3.80.2"
+          workingDirectory: "api"
+          # main -> prod, other branches -> dev
           command: >-
             publish
             --env=\${{ github.ref_name == 'main' && 'prod' || 'dev' }}
