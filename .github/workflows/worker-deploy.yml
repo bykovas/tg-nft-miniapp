@@ -31,4 +31,4 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-        run: wrangler deploy --env=${{ github.ref_name == 'main' && 'prod' || 'dev' }} --verbose
+        run: wrangler deploy --env=${{ github.ref_name == 'main' && 'prod' || 'dev' }}
