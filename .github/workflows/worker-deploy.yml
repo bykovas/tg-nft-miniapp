@@ -11,19 +11,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Install Wrangler
-        run: npm i -g wrangler@4.45.0
+      - name: Install Wrangler CLI
+        run: npm install -g wrangler@4.45.0
 
-      - name: Wrangler whoami (sanity check)
+      - name: Wrangler whoami
+        working-directory: api
         env:
           CLOUDFLARE_API_TOKEN: \${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CF_ACCOUNT_ID }}
-        run: wrangler whoami
+        run: wrangler whoami --verbose
 
       - name: Deploy Worker
         working-directory: api
