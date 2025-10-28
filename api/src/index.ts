@@ -1,44 +1,61 @@
 // Cloudflare Worker entry (TypeScript)
-// Handles / (keep alive), /api/ping (JSON), and a placeholder for /api/db/health.
+// Handles / (keep alive), /api/ping (JSON), and /api/db/health (D1 check)
 
 export interface Env {
-  STAGE?: string; // e.g., "prod" | "dev"
+  STAGE?: string;        // e.g. "prod" | "dev"
+  DB: D1Database;        // D1 binding defined in wrangler.toml
 }
 
 export default {
-  // Main fetch handler for Worker
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
 
-    // Keep existing behavior for root ("/") to not break your alive-check
+    // --- Root endpoint: keep-alive text ---
     if (pathname === "/") {
-      return new Response("tg-nft-miniapp-api alive (prod)", {
+      return new Response(`tg-nft-miniapp-api alive (${env.STAGE ?? "prod"})`, {
         status: 200,
         headers: { "content-type": "text/plain; charset=UTF-8" },
       });
     }
 
-    // New JSON ping endpoint
+    // --- Ping endpoint: JSON echo ---
     if (request.method === "GET" && pathname === "/api/ping") {
-      // Prefer STAGE env var; fallback to "prod" to mirror current domain
       const stage = env.STAGE ?? "prod";
       return json({ pong: true, stage });
     }
 
-    // Placeholder for DB health (will implement after D1 is wired)
+    // --- D1 health endpoint ---
     if (request.method === "GET" && pathname === "/api/db/health") {
-      return json({ ok: false, reason: "Not Implemented yet" }, 501);
+      try {
+        const row = await env.DB.prepare(
+          "SELECT key, value, updated_at FROM app_info WHERE key = ?"
+        )
+          .bind("health")
+          .first<{ key: string; value: string; updated_at: string }>();
+
+        if (!row) {
+          return json({ ok: false, reason: "No health row found" }, 404);
+        }
+
+        return json({
+          ok: row.value === "ok",
+          info: row,
+          stage: env.STAGE ?? "prod",
+        });
+      } catch (e) {
+        return json({ ok: false, error: (e as Error).message }, 500);
+      }
     }
 
-    // 404 for everything else
+    // --- Default 404 ---
     return json({ error: "Not Found", path: pathname }, 404);
   },
 };
 
-// Small helper to return JSON consistently
+// Helper to send JSON responses
 function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
+  return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
       "content-type": "application/json; charset=UTF-8",
