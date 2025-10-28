@@ -10,7 +10,12 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 > Telegram Mini App for NFT minting and trading — a **self-learning project** exploring Telegram WebApp integration, smart contracts (TON / EVM), and the Cloudflare stack (Workers, Pages, D1, R2).
-> Add @bykovas_nft_bot to Telegram 
+<p align="center">
+  <a href="https://t.me/bykovas_nft_bot">
+    <img alt="Add bot on Telegram"
+         src="https://img.shields.io/badge/Add%20bot%20on-Telegram-2CA5E0?logo=telegram&logoColor=white&style=for-the-badge">
+  </a>
+</p>
 
 ---
 
