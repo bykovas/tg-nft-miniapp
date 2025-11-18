@@ -29,9 +29,42 @@ const tg = {
   },
 };
 
-// ---- JSON response helper ----
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data, null, 2), {
+// ---- JSON response helper + CORS utilities ----
+const ALLOWED_ORIGINS = [
+  "https://tg-nft.bykovas.lt",
+  "https://dev.tg-nft.bykovas.lt",
+  "https://tg-nft.pages.dev",
+  "http://localhost:5173",
+];
+
+function withCors(request: Request, response: Response): Response {
+  const origin = request.headers.get("Origin");
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    response.headers.set("Access-Control-Allow-Origin", origin);
+    response.headers.set("Vary", "Origin");
+  } else {
+    response.headers.set("Access-Control-Allow-Origin", "*");
+  }
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+  response.headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.headers.set("Access-Control-Max-Age", "86400");
+  return response;
+}
+
+function handleOptions(request: Request): Response {
+  return withCors(
+    request,
+    new Response(null, {
+      status: 204,
+    })
+  );
+}
+
+function json(data: unknown, status = 200, request?: Request): Response {
+  const res = new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
       "content-type": "application/json; charset=UTF-8",
@@ -52,6 +85,18 @@ function corsPreflight(): Response {
       "access-control-allow-methods": "GET, POST, OPTIONS",
     },
   });
+}
+
+function corsPreflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "Content-Type, X-Requested-With",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+    },
+  });
+  return request ? withCors(request, res) : res;
 }
 
 // ---- Telegram initData verification helpers ----
@@ -145,10 +190,10 @@ export default {
           .bind("health")
           .first<{ key: string; value: string; updated_at: string }>();
 
-        if (!row) return json({ ok: false, reason: "No health row found" }, 404);
-        return json({ ok: row.value === "ok", info: row, stage: env.STAGE ?? "prod" });
+        if (!row) return json({ ok: false, reason: "No health row found" }, 404, request);
+        return json({ ok: row.value === "ok", info: row, stage: env.STAGE ?? "prod" }, 200, request);
       } catch (e) {
-        return json({ ok: false, error: (e as Error).message }, 500);
+        return json({ ok: false, error: (e as Error).message }, 500, request);
       }
     }
 
@@ -156,14 +201,14 @@ export default {
     if (matchPath("/tg/webhook") && request.method === "POST") {
       const secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
       if (!secret || secret !== env.TG_WEBHOOK_SECRET) {
-        return json({ ok: false, error: "Unauthorized webhook" }, 401);
+        return json({ ok: false, error: "Unauthorized webhook" }, 401, request);
       }
 
       let update: any;
       try {
         update = await request.json();
       } catch {
-        return json({ ok: false, error: "Invalid JSON" }, 400);
+        return json({ ok: false, error: "Invalid JSON" }, 400, request);
       }
 
       try {
@@ -202,9 +247,9 @@ export default {
         }
 
         // Always acknowledge to Telegram within 10s
-        return json({ ok: true });
+        return json({ ok: true }, 200, request);
       } catch (e) {
-        return json({ ok: false, error: (e as Error).message }, 500);
+        return json({ ok: false, error: (e as Error).message }, 500, request);
       }
     }
 
@@ -219,7 +264,7 @@ export default {
           const body = await request.json();
           if (body && typeof body.initData === "string") initDataRaw = body.initData;
         } catch {
-          return json({ ok: false, error: "Invalid JSON body" }, 400);
+          return json({ ok: false, error: "Invalid JSON body" }, 400, request);
         }
       } else if (contentType.includes("application/x-www-form-urlencoded")) {
         const form = await request.formData();
@@ -235,13 +280,13 @@ export default {
         } catch {}
       }
 
-      if (!initDataRaw) return json({ ok: false, error: "initData not found" }, 400);
+      if (!initDataRaw) return json({ ok: false, error: "initData not found" }, 400, request);
 
-      if (!env.TG_BOT_TOKEN) return json({ ok: false, error: "Bot token not configured" }, 500);
+      if (!env.TG_BOT_TOKEN) return json({ ok: false, error: "Bot token not configured" }, 500, request);
 
       try {
         const valid = await verifyInitData(initDataRaw, env.TG_BOT_TOKEN);
-        if (!valid) return json({ ok: false, error: "Invalid initData" }, 401);
+        if (!valid) return json({ ok: false, error: "Invalid initData" }, 401, request);
 
         const parsed = parseInitData(initDataRaw);
         // extract user JSON if present
@@ -275,9 +320,9 @@ export default {
           }
         }
 
-        return json({ ok: true, user });
+        return json({ ok: true, user }, 200, request);
       } catch (e) {
-        return json({ ok: false, error: (e as Error).message }, 500);
+        return json({ ok: false, error: (e as Error).message }, 500, request);
       }
     }
 
@@ -291,7 +336,7 @@ export default {
           const body = await request.json();
           if (body && typeof body.initData === "string") initDataRaw = body.initData;
         } catch {
-          return json({ ok: false, error: "Invalid JSON body" }, 400);
+          return json({ ok: false, error: "Invalid JSON body" }, 400, request);
         }
       } else if (contentType.includes("application/x-www-form-urlencoded")) {
         const form = await request.formData();
@@ -306,12 +351,12 @@ export default {
         } catch {}
       }
 
-      if (!initDataRaw) return json({ ok: false, error: "initData not found" }, 400);
-      if (!env.TG_BOT_TOKEN) return json({ ok: false, error: "Bot token not configured" }, 500);
+      if (!initDataRaw) return json({ ok: false, error: "initData not found" }, 400, request);
+      if (!env.TG_BOT_TOKEN) return json({ ok: false, error: "Bot token not configured" }, 500, request);
 
       try {
         const valid = await verifyInitData(initDataRaw, env.TG_BOT_TOKEN);
-        if (!valid) return json({ ok: false, error: "Invalid initData" }, 401);
+        if (!valid) return json({ ok: false, error: "Invalid initData" }, 401, request);
 
         const parsed = parseInitData(initDataRaw);
         let user: any = null;
@@ -345,9 +390,9 @@ export default {
 
         const resultUser = storedUser ?? user ?? null;
         // For MVP, if DB not present, return fake balance 0
-        return json({ ok: true, user: resultUser, balance: { tokens: balance } });
+        return json({ ok: true, user: resultUser, balance: { tokens: balance } }, 200, request);
       } catch (e) {
-        return json({ ok: false, error: (e as Error).message }, 500);
+        return json({ ok: false, error: (e as Error).message }, 500, request);
       }
     }
 
@@ -358,11 +403,11 @@ export default {
       try {
         body = await request.json();
       } catch {
-        return json({ ok: false, error: "Invalid JSON body" }, 400);
+        return json({ ok: false, error: "Invalid JSON body" }, 400, request);
       }
 
       const user = body?.user ?? null;
-      if (!user || !user.id) return json({ ok: false, error: "user with id is required" }, 400);
+      if (!user || !user.id) return json({ ok: false, error: "user with id is required" }, 400, request);
 
       // Register user in D1 if present
       try {
@@ -379,7 +424,7 @@ export default {
 
           const cntRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM ownerships WHERE owner_id = ?").bind(id).first<{ cnt: number }>();
           const balance = cntRow && typeof cntRow.cnt !== "undefined" ? Number(cntRow.cnt) : 0;
-          return json({ ok: true, user, balance: { tokens: balance } });
+          return json({ ok: true, user, balance: { tokens: balance } }, 200, request);
         }
       } catch (e) {
         console.error("/api/tg/me-dev DB error:", (e as Error).message);
@@ -397,6 +442,6 @@ export default {
     }
 
     // Default 404
-    return json({ error: "Not Found", path: pathname }, 404);
+    return json({ error: "Not Found", path: pathname }, 404, request);
   },
 };
