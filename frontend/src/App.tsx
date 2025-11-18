@@ -8,6 +8,18 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Choose API base depending on Pages host so frontend calls the correct Worker
+  const API_BASE = (() => {
+    try {
+      const host = typeof window !== 'undefined' ? window.location.host : '';
+      if (host.startsWith('dev.')) return 'https://dev.api.tg-nft.bykovas.lt';
+      return 'https://api.tg-nft.bykovas.lt';
+    } catch {
+      return 'https://api.tg-nft.bykovas.lt';
+    }
+  })();
+  const API_URL_FOR_POSTMAN = `${API_BASE}/api/tg/me`;
+
   useEffect(() => {
     WebApp.ready();
     WebApp.expand();
@@ -23,7 +35,7 @@ export default function App() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/tg/me", {
+        const res = await fetch(`${API_BASE}/api/tg/me`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ initData: initDataRaw }),
@@ -72,6 +84,10 @@ export default function App() {
       }}
     >
       <h1>👋 Hello {userName || "friend"}!</h1>
+      <div style={{ marginTop: 8, marginBottom: 8, fontSize: 13, color: '#cbd5e1' }}>
+        API endpoint for testing: 
+        <code style={{ background: 'rgba(0,0,0,0.12)', padding: '2px 6px', borderRadius: 6, marginLeft: 8 }}>{API_URL_FOR_POSTMAN}</code>
+      </div>
 
       {loading ? (
         <p>Loading your account...</p>
