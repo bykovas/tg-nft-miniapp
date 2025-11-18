@@ -88,18 +88,45 @@ function ab2hex(buffer: ArrayBuffer) {
     .join("");
 }
 
+interface InitDataPair {
+  key: string;
+  rawKey: string;
+  value: string;
+  rawValue: string;
+}
+
+function splitInitData(initData: string): InitDataPair[] {
+  const entries: InitDataPair[] = [];
+  const parts = initData.split("&");
+  for (const part of parts) {
+    if (!part) continue;
+    const eqIndex = part.indexOf("=");
+    const rawKey = eqIndex >= 0 ? part.slice(0, eqIndex) : part;
+    const rawValue = eqIndex >= 0 ? part.slice(eqIndex + 1) : "";
+
+    let key: string;
+    try {
+      key = decodeURIComponent(rawKey);
+    } catch {
+      key = rawKey;
+    }
+
+    let decodedValue: string;
+    try {
+      decodedValue = decodeURIComponent(rawValue.replace(/\+/g, " "));
+    } catch {
+      decodedValue = rawValue;
+    }
+
+    entries.push({ key, rawKey, value: decodedValue, rawValue });
+  }
+  return entries;
+}
+
 function parseInitData(initData: string): Record<string, string> {
   const obj: Record<string, string> = {};
-  const parts = initData.split("&");
-  for (const p of parts) {
-    const [k, ...rest] = p.split("=");
-    if (!k) continue;
-    const v = rest.join("=");
-    try {
-      obj[k] = decodeURIComponent(v.replace(/\+/g, " "));
-    } catch {
-      obj[k] = v;
-    }
+  for (const pair of splitInitData(initData)) {
+    obj[pair.key] = pair.value;
   }
   return obj;
 }
@@ -132,13 +159,18 @@ function initDataObjectToString(obj: unknown): string | null {
 }
 
 async function verifyInitData(initData: string, botToken: string): Promise<boolean> {
-  const data = parseInitData(initData);
-  const hash = data["hash"] ?? data["signature"] ?? data["sig"];
-  if (!hash) return false;
+  const pairs = splitInitData(initData);
+  const hashPair =
+    pairs.find((p) => p.key === "hash") ??
+    pairs.find((p) => p.key === "signature") ??
+    pairs.find((p) => p.key === "sig");
+  if (!hashPair) return false;
 
-  // Build data_check_string: all fields except hash, sorted by key
-  const keys = Object.keys(data).filter((k) => k !== "hash").sort();
-  const dataCheck = keys.map((k) => `${k}=${data[k]}`).join("\n");
+  const dataCheck = pairs
+    .filter((p) => p.key !== hashPair.key)
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((p) => `${p.key}=${p.rawValue}`)
+    .join("\n");
 
   const enc = new TextEncoder();
 
