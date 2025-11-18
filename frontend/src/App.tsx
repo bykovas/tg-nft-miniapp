@@ -85,8 +85,17 @@ export default function App() {
     >
       <h1>👋 Hello {userName || "friend"}!</h1>
       <div style={{ marginTop: 8, marginBottom: 8, fontSize: 13, color: '#cbd5e1' }}>
-        API endpoint for testing: 
+        API endpoint for testing:
         <code style={{ background: 'rgba(0,0,0,0.12)', padding: '2px 6px', borderRadius: 6, marginLeft: 8 }}>{API_URL_FOR_POSTMAN}</code>
+      </div>
+
+      <div style={{ marginTop: 6, fontSize: 13, color: '#cbd5e1' }}>
+        Opened inside Telegram client: <strong>{(window as any)?.Telegram ? 'Yes' : 'No'}</strong>
+      </div>
+
+      <div style={{ marginTop: 6, fontSize: 12, color: '#f1f5f9', maxWidth: 620, wordBreak: 'break-all', background: 'rgba(0,0,0,0.06)', padding: 8, borderRadius: 6 }}>
+        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>Raw initData (visible in Telegram WebView if present):</div>
+        <div id="__initdata_display">{(window as any).__DEBUG_TG_INITDATA__ || '(no initData provided)'}</div>
       </div>
 
       {loading ? (
