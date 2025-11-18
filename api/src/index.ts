@@ -159,24 +159,20 @@ function initDataObjectToString(obj: unknown): string | null {
 }
 
 async function verifyInitData(initData: string, botToken: string): Promise<boolean> {
-  const pairs = splitInitData(initData);
-  const hashPair =
-    pairs.find((p) => p.key === "hash") ??
-    pairs.find((p) => p.key === "signature") ??
-    pairs.find((p) => p.key === "sig");
-  if (!hashPair) return false;
+  const parsed = parseInitData(initData);
 
-  const excludeKeys = new Set(["hash", "signature", "sig"]);
+  const { hash, ...rest } = parsed;
+  if (!hash) return false;
 
-  const dataCheck = pairs
-    .filter((p) => !excludeKeys.has(p.key))
-    .sort((a, b) => a.key.localeCompare(b.key))
-    .map((p) => `${p.key}=${p.rawValue}`)
+  // Step 1. sort fields
+  const dataCheckString = Object.entries(rest)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
     .join("\n");
 
   const enc = new TextEncoder();
 
-  // Telegram Mini Apps require secret_key = HMAC_SHA256(bot_token, "WebAppData") with "WebAppData" used as the key
+  // Step 2. create secret = hmac_sha256("WebAppData", botToken)
   const baseKey = await crypto.subtle.importKey(
     "raw",
     enc.encode("WebAppData"),
@@ -184,6 +180,24 @@ async function verifyInitData(initData: string, botToken: string): Promise<boole
     false,
     ["sign"]
   );
+  const secretBytes = await crypto.subtle.sign("HMAC", baseKey, enc.encode(botToken));
+
+  // Step 3. sign dataCheckString with secret
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    secretBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(dataCheckString));
+
+  const ourHash = ab2hex(signature).toLowerCase();
+
+  return ourHash === parsed.hash.toLowerCase();
+}
+
   const secretKeyBytes = await crypto.subtle.sign("HMAC", baseKey, enc.encode(botToken));
 
   const cryptoKey = await crypto.subtle.importKey(
