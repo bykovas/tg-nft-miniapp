@@ -166,8 +166,10 @@ async function verifyInitData(initData: string, botToken: string): Promise<boole
     pairs.find((p) => p.key === "sig");
   if (!hashPair) return false;
 
+  const excludeKeys = new Set(["hash", "signature", "sig"]);
+
   const dataCheck = pairs
-    .filter((p) => p.key !== hashPair.key)
+    .filter((p) => !excludeKeys.has(p.key))
     .sort((a, b) => a.key.localeCompare(b.key))
     .map((p) => `${p.key}=${p.rawValue}`)
     .join("\n");
