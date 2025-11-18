@@ -195,7 +195,7 @@ async function verifyInitData(initData: string, botToken: string): Promise<boole
   const signature = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(dataCheck));
 
   const ourHex = ab2hex(signature);
-  return ourHex.toLowerCase() === String(hash).toLowerCase();
+  return ourHex.toLowerCase() === String(hashPair.value).toLowerCase();
 }
 
 export default {
