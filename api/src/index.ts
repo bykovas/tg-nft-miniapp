@@ -261,6 +261,76 @@ export default {
       }
     }
 
+    // Return authenticated user details via initData
+    if (pathname === "/api/tg/me" && request.method === "POST") {
+      let initDataRaw: string | null = null;
+
+      const contentType = request.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        try {
+          const body = await request.json();
+          if (body && typeof body.initData === "string") initDataRaw = body.initData;
+        } catch {
+          return json({ ok: false, error: "Invalid JSON body" }, 400);
+        }
+      } else if (contentType.includes("application/x-www-form-urlencoded")) {
+        const form = await request.formData();
+        const v = form.get("initData");
+        if (typeof v === "string") initDataRaw = v;
+      }
+
+      if (!initDataRaw) {
+        try {
+          const text = await request.text();
+          if (text && text.includes("hash=")) initDataRaw = text.trim();
+        } catch {}
+      }
+
+      if (!initDataRaw) return json({ ok: false, error: "initData not found" }, 400);
+      if (!env.TG_BOT_TOKEN) return json({ ok: false, error: "Bot token not configured" }, 500);
+
+      try {
+        const valid = await verifyInitData(initDataRaw, env.TG_BOT_TOKEN);
+        if (!valid) return json({ ok: false, error: "Invalid initData" }, 401);
+
+        const parsed = parseInitData(initDataRaw);
+        let user: any = null;
+        if (parsed.user) {
+          try {
+            user = JSON.parse(parsed.user);
+          } catch {
+            user = null;
+          }
+        }
+
+        // If DB bound, try to load stored user and compute fake balance = ownerships count
+        let storedUser: any = null;
+        let balance = 0;
+        if (env.DB && user) {
+          try {
+            const id = Number(user.id);
+            if (!Number.isNaN(id)) {
+              const row = await env.DB.prepare("SELECT id, first_name, last_name, username, language_code, created_at FROM users WHERE id = ?")
+                .bind(id)
+                .first<any>();
+              if (row) storedUser = row;
+
+              const cntRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM ownerships WHERE owner_id = ?").bind(id).first<{ cnt: number }>();
+              if (cntRow && typeof cntRow.cnt !== "undefined") balance = Number(cntRow.cnt);
+            }
+          } catch (e) {
+            console.error("DB /me error:", (e as Error).message);
+          }
+        }
+
+        const resultUser = storedUser ?? user ?? null;
+        // For MVP, if DB not present, return fake balance 0
+        return json({ ok: true, user: resultUser, balance: { tokens: balance } });
+      } catch (e) {
+        return json({ ok: false, error: (e as Error).message }, 500);
+      }
+    }
+
     // Default 404
     return json({ error: "Not Found", path: pathname }, 404);
   },
