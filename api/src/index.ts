@@ -36,6 +36,20 @@ function json(data: unknown, status = 200): Response {
     headers: {
       "content-type": "application/json; charset=UTF-8",
       "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "Content-Type, X-Requested-With",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+    },
+  });
+}
+
+function corsPreflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "Content-Type, X-Requested-With",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
     },
   });
 }
@@ -70,7 +84,7 @@ function parseInitData(initData: string): Record<string, string> {
 
 async function verifyInitData(initData: string, botToken: string): Promise<boolean> {
   const data = parseInitData(initData);
-  const hash = data["hash"];
+  const hash = data["hash"] ?? data["signature"] ?? data["sig"];
   if (!hash) return false;
 
   // Build data_check_string: all fields except hash, sorted by key
@@ -94,7 +108,7 @@ async function verifyInitData(initData: string, botToken: string): Promise<boole
   );
 
   const ourHex = ab2hex(signature);
-  return ourHex === hash;
+  return ourHex.toLowerCase() === String(hash).toLowerCase();
 }
 
 export default {
@@ -102,8 +116,14 @@ export default {
     const url = new URL(request.url);
     const { pathname } = url;
 
+    // helper: allow matching when Worker is mounted under a prefix
+    const matchPath = (p: string) => pathname === p || pathname.endsWith(p);
+
+    // Handle CORS preflight
+    if (request.method === "OPTIONS") return corsPreflight();
+
     // Root: keep existing alive text
-    if (pathname === "/") {
+    if (matchPath("/")) {
       return new Response(`tg-nft-miniapp-api alive (${env.STAGE ?? "prod"})`, {
         status: 200,
         headers: { "content-type": "text/plain; charset=UTF-8" },
@@ -111,12 +131,12 @@ export default {
     }
 
     // JSON ping
-    if (request.method === "GET" && pathname === "/api/ping") {
+    if (request.method === "GET" && matchPath("/api/ping")) {
       return json({ pong: true, stage: env.STAGE ?? "prod" });
     }
 
     // D1 health check (expects table app_info with key 'health')
-    if (request.method === "GET" && pathname === "/api/db/health") {
+    if (request.method === "GET" && matchPath("/api/db/health")) {
       if (!env.DB) return json({ ok: false, error: "DB binding is missing" }, 500);
       try {
         const row = await env.DB.prepare(
@@ -133,7 +153,7 @@ export default {
     }
 
     // Telegram webhook: validates secret header, handles /start and generic text
-    if (pathname === "/tg/webhook" && request.method === "POST") {
+    if (matchPath("/tg/webhook") && request.method === "POST") {
       const secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
       if (!secret || secret !== env.TG_WEBHOOK_SECRET) {
         return json({ ok: false, error: "Unauthorized webhook" }, 401);
@@ -190,7 +210,7 @@ export default {
 
     // Telegram initData validation endpoint
     // Expects JSON body { initData: "..." } or form/query containing initData string
-    if (pathname === "/api/tg/validate-init" && request.method === "POST") {
+    if (matchPath("/api/tg/validate-init") && request.method === "POST") {
       let initDataRaw: string | null = null;
 
       const contentType = request.headers.get("content-type") ?? "";
@@ -262,7 +282,7 @@ export default {
     }
 
     // Return authenticated user details via initData
-    if (pathname === "/api/tg/me" && request.method === "POST") {
+    if (matchPath("/api/tg/me") && request.method === "POST") {
       let initDataRaw: string | null = null;
 
       const contentType = request.headers.get("content-type") ?? "";
@@ -333,7 +353,7 @@ export default {
 
     // Dev helper: accept a raw user object for testing (no initData required)
     // POST { user: { id, first_name, last_name, username, language_code } }
-    if (pathname === "/api/tg/me-dev" && request.method === "POST") {
+    if (matchPath("/api/tg/me-dev") && request.method === "POST") {
       let body: any;
       try {
         body = await request.json();
@@ -367,6 +387,13 @@ export default {
 
       // Fallback success response without DB
       return json({ ok: true, user, balance: { tokens: 5 } });
+    }
+
+    // Diagnostic endpoint: useful to see where request landed
+    if (matchPath("/api/_whoami") || matchPath("/_whoami")) {
+      const headers: Record<string, string | null> = {};
+      request.headers.forEach((v, k) => (headers[k] = v));
+      return json({ ok: true, host: url.host, pathname, method: request.method, headers });
     }
 
     // Default 404
