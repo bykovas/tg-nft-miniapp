@@ -69,51 +69,77 @@ export default function App() {
         <>
           <p>Welcome to Bykovas NFT Mini App</p>
           <div style={{ marginTop: "1rem", textAlign: "center" }}>
-            <div
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                padding: "12px 16px",
-                borderRadius: 12,
-                minWidth: 220,
-              }}
-            >
-              <strong>Profile</strong>
-              <div style={{ fontSize: 14, marginTop: 8 }}>
-                <div>{user?.first_name} {user?.last_name}</div>
-                <div style={{ color: "#b9c2cc" }}>@{user?.username}</div>
-              </div>
-            </div>
+            {/* show demo/mock data when real user missing */}
+            {(() => {
+              const mockUser = { first_name: "Demo", last_name: "User", username: "demo_user" };
+              const display = user ?? mockUser;
+              const displayBalance = (balance ?? (user ? 0 : 5)); // show 5 tokens in demo
+              return (
+                <>
+                  <div
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      padding: "12px 16px",
+                      borderRadius: 12,
+                      minWidth: 220,
+                    }}
+                  >
+                    <strong>Profile</strong>
+                    <div style={{ fontSize: 14, marginTop: 8 }}>
+                      <div>{display.first_name} {display.last_name}</div>
+                      <div style={{ color: "#b9c2cc" }}>@{display.username}</div>
+                    </div>
+                  </div>
 
-            <div style={{ height: 12 }} />
+                  <div style={{ height: 12 }} />
 
-            <div
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                padding: "12px 16px",
-                borderRadius: 12,
-                minWidth: 220,
-              }}
-            >
-              <strong>Balance</strong>
-              <div style={{ fontSize: 20, marginTop: 8 }}>{balance ?? 0} tokens</div>
-            </div>
+                  <div
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      padding: "12px 16px",
+                      borderRadius: 12,
+                      minWidth: 220,
+                    }}
+                  >
+                    <strong>Balance</strong>
+                    <div style={{ fontSize: 20, marginTop: 8 }}>{displayBalance} tokens</div>
+                  </div>
+
+                  <div style={{ height: 14 }} />
+
+                  <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+                    <button
+                      onClick={() => ((WebApp as any).showAlert ? (WebApp as any).showAlert("Buying demo NFT — not implemented") : alert("Buying demo NFT — not implemented"))}
+                      style={{
+                        background: "#10B981",
+                        color: "white",
+                        border: "none",
+                        borderRadius: 10,
+                        padding: "8px 14px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Buy Demo NFT
+                    </button>
+
+                    <button
+                      onClick={() => ((WebApp as any).showAlert ? (WebApp as any).showAlert("Opening inventory") : alert("Opening inventory"))}
+                      style={{
+                        background: "#2563EB",
+                        color: "white",
+                        border: "none",
+                        borderRadius: 10,
+                        padding: "8px 14px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Open Inventory
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
-
-          <button
-            onClick={() => WebApp.showAlert("Wallet connection coming soon")}
-            style={{
-              marginTop: "1.5rem",
-              background: WebApp.themeParams.button_color || "#FF6A00",
-              color: WebApp.themeParams.button_text_color || "#fff",
-              border: "none",
-              borderRadius: "12px",
-              padding: "12px 24px",
-              fontSize: "16px",
-              cursor: "pointer",
-            }}
-          >
-            Connect Wallet
-          </button>
         </>
       )}
     </main>
