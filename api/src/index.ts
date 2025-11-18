@@ -82,11 +82,6 @@ function corsPreflight(request: Request): Response {
 }
 
 // ---- Telegram initData verification helpers ----
-async function sha256(data: Uint8Array | ArrayBuffer) {
-  const buf = data instanceof Uint8Array ? data.buffer : data;
-  return await crypto.subtle.digest("SHA-256", buf as ArrayBuffer);
-}
-
 function ab2hex(buffer: ArrayBuffer) {
   return Array.from(new Uint8Array(buffer))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -146,20 +141,26 @@ async function verifyInitData(initData: string, botToken: string): Promise<boole
   const dataCheck = keys.map((k) => `${k}=${data[k]}`).join("\n");
 
   const enc = new TextEncoder();
-  const keyHash = await sha256(enc.encode(botToken));
+
+  // Telegram Mini Apps require secret_key = HMAC_SHA256(bot_token, "WebAppData")
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(botToken),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const secretKeyBytes = await crypto.subtle.sign("HMAC", baseKey, enc.encode("WebAppData"));
+
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
-    keyHash,
+    secretKeyBytes,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
   );
 
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    cryptoKey,
-    enc.encode(dataCheck).buffer
-  );
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(dataCheck));
 
   const ourHex = ab2hex(signature);
   return ourHex.toLowerCase() === String(hash).toLowerCase();
