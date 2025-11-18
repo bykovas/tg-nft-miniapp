@@ -54,15 +54,6 @@ function withCors(request: Request, response: Response): Response {
   return response;
 }
 
-function handleOptions(request: Request): Response {
-  return withCors(
-    request,
-    new Response(null, {
-      status: 204,
-    })
-  );
-}
-
 function json(data: unknown, status = 200, request?: Request): Response {
   const res = new Response(JSON.stringify(data, null, 2), {
     status,
@@ -74,29 +65,20 @@ function json(data: unknown, status = 200, request?: Request): Response {
       "access-control-allow-methods": "GET, POST, OPTIONS",
     },
   });
-}
-
-function corsPreflight(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "access-control-allow-origin": "*",
-      "access-control-allow-headers": "Content-Type, X-Requested-With",
-      "access-control-allow-methods": "GET, POST, OPTIONS",
-    },
-  });
-}
-
-function corsPreflight(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "access-control-allow-origin": "*",
-      "access-control-allow-headers": "Content-Type, X-Requested-With",
-      "access-control-allow-methods": "GET, POST, OPTIONS",
-    },
-  });
   return request ? withCors(request, res) : res;
+}
+
+function corsPreflight(request: Request): Response {
+  const res = new Response(null, {
+    status: 204,
+    headers: {
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "Content-Type, X-Requested-With",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-max-age": "86400",
+    },
+  });
+  return withCors(request, res);
 }
 
 // ---- Telegram initData verification helpers ----
@@ -165,7 +147,7 @@ export default {
     const matchPath = (p: string) => pathname === p || pathname.endsWith(p);
 
     // Handle CORS preflight
-    if (request.method === "OPTIONS") return corsPreflight();
+    if (request.method === "OPTIONS") return corsPreflight(request);
 
     // Root: keep existing alive text
     if (matchPath("/")) {
