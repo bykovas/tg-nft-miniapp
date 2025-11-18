@@ -15,29 +15,41 @@ export default function App() {
     // Try to read raw initData string. SDK exposes .initDataUnsafe (object) and
     // window.Telegram?.WebApp?.initData has raw string in many environments.
     const rawInitData = (window as any)?.Telegram?.WebApp?.initData || (WebApp as any).initData || "";
+    // Debug: expose raw initData for troubleshooting Telegram issues
+    (window as any).__DEBUG_TG_INITDATA__ = rawInitData;
+    console.debug("rawInitData:", rawInitData);
 
-    // If we have an initData string, call backend to get /me
-    if (rawInitData) {
+    async function fetchMe(initDataRaw: string) {
       setLoading(true);
-      fetch("/api/tg/me", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ initData: rawInitData }),
-      })
-        .then(async (res) => {
-          const data = await res.json();
-          if (!res.ok || !data.ok) {
-            throw new Error(data?.error || `HTTP ${res.status}`);
-          }
-          setUser(data.user ?? null);
-          setUserName(data.user?.first_name ?? "");
-          // Expect balance.tokens from server
-          setBalance(data.balance?.tokens ?? 0);
-        })
-        .catch((e) => {
-          setError((e && e.message) || String(e));
-        })
-        .finally(() => setLoading(false));
+      setError(null);
+      try {
+        const res = await fetch("/api/tg/me", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ initData: initDataRaw }),
+        });
+        const text = await res.text();
+        let data: any = null;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { ok: false, error: `Invalid JSON response: ${text}` };
+        }
+        if (!res.ok || !data.ok) throw new Error(data?.error || `HTTP ${res.status} - ${text}`);
+        setUser(data.user ?? null);
+        setUserName(data.user?.first_name ?? "");
+        setBalance(data.balance?.tokens ?? 0);
+      } catch (e) {
+        const msg = (e && (e as Error).message) || String(e);
+        console.error("/api/tg/me error:", msg);
+        setError(String(msg));
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (rawInitData) {
+      fetchMe(rawInitData);
     } else {
       // Fallback: use initDataUnsafe from SDK for display only
       const initUnsafe = (WebApp as any).initDataUnsafe;
