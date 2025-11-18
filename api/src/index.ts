@@ -331,6 +331,44 @@ export default {
       }
     }
 
+    // Dev helper: accept a raw user object for testing (no initData required)
+    // POST { user: { id, first_name, last_name, username, language_code } }
+    if (pathname === "/api/tg/me-dev" && request.method === "POST") {
+      let body: any;
+      try {
+        body = await request.json();
+      } catch {
+        return json({ ok: false, error: "Invalid JSON body" }, 400);
+      }
+
+      const user = body?.user ?? null;
+      if (!user || !user.id) return json({ ok: false, error: "user with id is required" }, 400);
+
+      // Register user in D1 if present
+      try {
+        const id = Number(user.id);
+        if (!Number.isNaN(id) && env.DB) {
+          const exists = await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(id).first();
+          if (!exists) {
+            await env.DB.prepare(
+              "INSERT INTO users (id, first_name, last_name, username, language_code) VALUES (?, ?, ?, ?, ?)"
+            )
+              .bind(id, user.first_name ?? null, user.last_name ?? null, user.username ?? null, user.language_code ?? null)
+              .run();
+          }
+
+          const cntRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM ownerships WHERE owner_id = ?").bind(id).first<{ cnt: number }>();
+          const balance = cntRow && typeof cntRow.cnt !== "undefined" ? Number(cntRow.cnt) : 0;
+          return json({ ok: true, user, balance: { tokens: balance } });
+        }
+      } catch (e) {
+        console.error("/api/tg/me-dev DB error:", (e as Error).message);
+      }
+
+      // Fallback success response without DB
+      return json({ ok: true, user, balance: { tokens: 5 } });
+    }
+
     // Default 404
     return json({ error: "Not Found", path: pathname }, 404);
   },
