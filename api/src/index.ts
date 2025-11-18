@@ -309,7 +309,19 @@ export default {
     }
 
     // Return authenticated user details via initData
-    if (matchPath("/api/tg/me") && request.method === "POST") {
+    if (matchPath("/api/tg/me")) {
+      if (request.method !== "POST") {
+        return json(
+          {
+            ok: false,
+            error: "Use POST with Telegram initData to fetch /api/tg/me",
+            hint: "Send JSON { initData: \"...\" } as described in https://core.telegram.org/bots/webapps#initializing-mini-apps",
+          },
+          405,
+          request
+        );
+      }
+
       let initDataRaw: string | null = null;
 
       const contentType = request.headers.get("content-type") ?? "";
