@@ -109,6 +109,33 @@ function parseInitData(initData: string): Record<string, string> {
   return obj;
 }
 
+function initDataObjectToString(obj: unknown): string | null {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+
+  const entries: string[] = [];
+  let hasHash = false;
+
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (value === undefined || value === null) continue;
+    if (key === "hash") hasHash = true;
+
+    let encodedValue: string;
+    if (typeof value === "object") {
+      try {
+        encodedValue = JSON.stringify(value);
+      } catch {
+        continue;
+      }
+    } else {
+      encodedValue = String(value);
+    }
+
+    entries.push(`${encodeURIComponent(key)}=${encodeURIComponent(encodedValue)}`);
+  }
+
+  return hasHash && entries.length ? entries.join("&") : null;
+}
+
 async function verifyInitData(initData: string, botToken: string): Promise<boolean> {
   const data = parseInitData(initData);
   const hash = data["hash"] ?? data["signature"] ?? data["sig"];
@@ -326,16 +353,37 @@ export default {
 
       const contentType = request.headers.get("content-type") ?? "";
       if (contentType.includes("application/json")) {
+        let body: unknown;
         try {
-          const body = await request.json();
-          if (body && typeof body.initData === "string") initDataRaw = body.initData;
+          body = await request.json();
         } catch {
           return json({ ok: false, error: "Invalid JSON body" }, 400, request);
+        }
+
+        if (body && typeof body === "object" && !Array.isArray(body)) {
+          const jsonBody = body as Record<string, unknown>;
+          const initDataField = jsonBody["initData"];
+
+          if (typeof initDataField === "string") {
+            initDataRaw = initDataField.trim();
+          } else if (initDataField && typeof initDataField === "object" && !Array.isArray(initDataField)) {
+            initDataRaw = initDataObjectToString(initDataField as Record<string, unknown>);
+          }
+
+          if (!initDataRaw) {
+            const possible = initDataObjectToString(jsonBody);
+            if (possible) initDataRaw = possible;
+          }
         }
       } else if (contentType.includes("application/x-www-form-urlencoded")) {
         const form = await request.formData();
         const v = form.get("initData");
         if (typeof v === "string") initDataRaw = v;
+      }
+
+      if (!initDataRaw) {
+        const headerInit = request.headers.get("x-telegram-init-data");
+        if (headerInit) initDataRaw = headerInit.trim();
       }
 
       if (!initDataRaw) {
@@ -345,7 +393,19 @@ export default {
         } catch {}
       }
 
-      if (!initDataRaw) return json({ ok: false, error: "initData not found" }, 400, request);
+      if (!initDataRaw) {
+        return json(
+          {
+            ok: false,
+            error: "initData not found",
+            hint:
+              "Send Telegram initData as a raw query string, JSON field \"initData\", object with hash/auth_date/user, or header X-Telegram-Init-Data. For manual tests without Telegram, call /api/tg/me-dev instead.",
+            docs: "https://core.telegram.org/bots/webapps#initializing-mini-apps",
+          },
+          400,
+          request
+        );
+      }
       if (!env.TG_BOT_TOKEN) return json({ ok: false, error: "Bot token not configured" }, 500, request);
 
       try {
