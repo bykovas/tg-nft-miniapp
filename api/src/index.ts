@@ -176,15 +176,15 @@ async function verifyInitData(initData: string, botToken: string): Promise<boole
 
   const enc = new TextEncoder();
 
-  // Telegram Mini Apps require secret_key = HMAC_SHA256(bot_token, "WebAppData")
+  // Telegram Mini Apps require secret_key = HMAC_SHA256(bot_token, "WebAppData") with "WebAppData" used as the key
   const baseKey = await crypto.subtle.importKey(
     "raw",
-    enc.encode(botToken),
+    enc.encode("WebAppData"),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
   );
-  const secretKeyBytes = await crypto.subtle.sign("HMAC", baseKey, enc.encode("WebAppData"));
+  const secretKeyBytes = await crypto.subtle.sign("HMAC", baseKey, enc.encode(botToken));
 
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
